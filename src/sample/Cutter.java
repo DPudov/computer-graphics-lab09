@@ -106,6 +106,14 @@ public class Cutter {
     public void clear() {
         vertices.clear();
         isFull = false;
+    }
 
+    public ArrayList<Edge> getEdges() {
+        ArrayList<Edge> result = new ArrayList<>();
+        for (int i = 0; i < vertices.size() - 1; i++) {
+            result.add(new Edge(vertices.get(i), vertices.get(i + 1)));
+        }
+        result.add(new Edge(vertices.get(vertices.size() - 1), vertices.get(0)));
+        return result;
     }
 }

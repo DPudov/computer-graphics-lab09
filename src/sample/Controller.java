@@ -8,12 +8,10 @@ import javafx.scene.input.MouseButton;
 import javafx.scene.input.MouseEvent;
 import javafx.scene.paint.Color;
 
+import java.util.ArrayList;
 import java.util.LinkedList;
-import java.util.Optional;
 
 public class Controller {
-    @FXML
-    Button parallelButton;
     @FXML
     Canvas canvas;
     @FXML
@@ -35,25 +33,18 @@ public class Controller {
     @FXML
     TextField inputX1Field;
     @FXML
-    TextField inputX2Field;
-    @FXML
-    TextField inputY2Field;
-    @FXML
     TextField inputY1Field;
     @FXML
     Button addLineButton;
 
     private Cutter cutter = new Cutter();
-    private Edge currentLine = new Edge();
+    private final LinkedList<Edge> allEdges = new LinkedList<>();
     private LinkedList<Edge> edges = new LinkedList<>();
     private LinkedList<Cutter> cutters = new LinkedList<>();
-    private boolean isConvex;
+    private final LinkedList<Edge> currentPolygon = new LinkedList<>();
+    private final ArrayList<Polygon> polygons = new ArrayList<>();
+    private Edge currentEdge = new Edge(new Point(0, 0), new Point(0, 0));
     private int direction = -1;
-    private int edgeNumber = 0;
-    private boolean begParallelInit = false;
-    private double tan = 0;
-    private int xb;
-    private int yb;
 
     @FXML
     public void initialize() {
@@ -70,9 +61,7 @@ public class Controller {
             try {
                 Point p1 = new Point(Integer.parseInt(inputX1Field.getText()),
                         Integer.parseInt(inputY1Field.getText()));
-                Point p2 = new Point(Integer.parseInt(inputX2Field.getText()),
-                        Integer.parseInt(inputY2Field.getText()));
-                edges.add(new Edge(p1, p2));
+                addPoint(p1.getX(), p1.getY());
                 doUpdate();
             } catch (NumberFormatException e) {
                 setAlert("Введены неверные данные для нового отрезка");
@@ -92,32 +81,6 @@ public class Controller {
                 setAlert("Введены неверные данные для нового отсекателя");
             }
         });
-        parallelButton.addEventHandler(MouseEvent.MOUSE_CLICKED, mouseEvent -> {
-            if (cutters.size() != 0) {
-                TextInputDialog dialog = new TextInputDialog();
-                dialog.setTitle("Введите номер ребра");
-                dialog.setContentText("Номер");
-                dialog.setHeaderText("Введите номер ребра");
-                Optional<String> result = dialog.showAndWait();
-                result.ifPresent(number -> {
-                    this.edgeNumber = Integer.parseInt(number);
-                    Point beg;
-                    Point end;
-
-                    if (edgeNumber < cutter.size() - 1) {
-                        beg = cutter.get(edgeNumber);
-                        end = cutter.get(edgeNumber + 1);
-                        tan = (end.getY() - beg.getY()) / (end.getX() - beg.getX());
-                    } else if (edgeNumber == cutter.size() - 1) {
-                        beg = cutter.get(edgeNumber);
-                        end = cutter.get(0);
-                        tan = (end.getY() - beg.getY()) / (end.getX() - beg.getX());
-                    }
-                });
-            } else {
-                setAlert("Нет отсекателя");
-            }
-        });
     }
 
     private void setupCanvasListeners() {
@@ -126,35 +89,31 @@ public class Controller {
             boolean hasShift = e.isShiftDown();
             boolean hasControl = e.isControlDown();
 
-            if (!begParallelInit) {
-                if (b == MouseButton.PRIMARY && hasShift && hasControl) {
-                    //Прямая
-                    addPointParallel((int) e.getX(), (int) e.getY());
-                } else if (b == MouseButton.PRIMARY && hasShift) {
-                    // горизонтальная
-                    addPointHorizontal((int) e.getX(), (int) e.getY());
-                } else if (b == MouseButton.PRIMARY && hasControl) {
-                    // вертикальная
-                    addPointVertical((int) e.getX(), (int) e.getY());
-                } else if (b == MouseButton.PRIMARY) {
-                    addPoint((int) e.getX(), (int) e.getY());
-                    // Прямая
-                } else if (b == MouseButton.SECONDARY && hasControl) {
-                    addCutterPoint(new Point(e.getX(), e.getY()));
-                } else if (b == MouseButton.SECONDARY) {
-                    closeCutter();
-                }
-            } else {
-                addPointParallel((int) e.getX(), (int) e.getY());
+            if (b == MouseButton.PRIMARY && hasShift && hasControl) {
+                //Прямая
+                addPoint((int) e.getX(), (int) e.getY());
+            } else if (b == MouseButton.PRIMARY && hasShift) {
+                // горизонтальная
+                addPointHorizontal((int) e.getX(), (int) e.getY());
+            } else if (b == MouseButton.PRIMARY && hasControl) {
+                // вертикальная
+                addPointVertical((int) e.getX(), (int) e.getY());
+            } else if (b == MouseButton.PRIMARY) {
+                addPoint((int) e.getX(), (int) e.getY());
+            } else if (b == MouseButton.SECONDARY && hasControl) {
+                closeCutter();
+            } else if (b == MouseButton.SECONDARY && hasShift) {
+                closePolygon();
+            } else if (b == MouseButton.SECONDARY) {
+                addCutterPoint(new Point(e.getX(), e.getY()));
             }
 
-            doUpdate();
+//            doUpdate();
 
         });
 
-        canvas.addEventHandler(MouseEvent.MOUSE_MOVED, mouseEvent -> {
-            cursorLabel.setText("Координата курсора: " + mouseEvent.getX() + " ; " + mouseEvent.getY());
-        });
+        canvas.addEventHandler(MouseEvent.MOUSE_MOVED, mouseEvent ->
+                cursorLabel.setText("Координата курсора: " + mouseEvent.getX() + " ; " + mouseEvent.getY()));
     }
 
     private void addCutterPoint(Point point) {
@@ -180,14 +139,23 @@ public class Controller {
             int sign = cutter.getSign();
             if (isConvex) {
                 cutters.add(cutter);
-                this.isConvex = true;
                 this.direction = sign;
             } else {
-                this.isConvex = false;
-                setAlert("МНОГОУГОЛЬНИК ДОЛЖЕН БЫТЬ ВЫПУКЛЫМ!");
+                setAlert("ОТСЕКАТЕЛЬ ДОЛЖЕН БЫТЬ ВЫПУКЛЫМ!");
             }
         }
         doUpdate();
+    }
+
+    private void closePolygon() {
+        if (currentPolygon.size() > 1) {
+            addPoint(currentPolygon.get(0).getBegin().getX(), currentPolygon.get(0).getBegin().getY());
+            LinkedList<Edge> copy = new LinkedList<>(currentPolygon);
+            polygons.add(new Polygon(copy));
+            currentPolygon.clear();
+            currentEdge.setBeginInit(false);
+            currentEdge.setEndInit(false);
+        }
     }
 
     private void setupColors() {
@@ -205,60 +173,64 @@ public class Controller {
 
 
     private void clearData() {
-        currentLine.clear();
+        currentEdge.clear();
         edges.clear();
         cutters.clear();
         cutter.clear();
-    }
-
-    private void addPointParallel(int x, int y) {
-        if (cutters.size() > 0) {
-
-            if (!begParallelInit) {
-                addPoint(x, y);
-                begParallelInit = true;
-                this.xb = x;
-                this.yb = y;
-            } else {
-                addPoint(x, yb + tan * (x - xb));
-                begParallelInit = false;
-            }
-        }
+        currentPolygon.clear();
+        polygons.clear();
+        allEdges.clear();
     }
 
     private void addPointHorizontal(int x, int y) {
-        if (currentLine.isEndInit()) {
-            addPoint(x, currentLine.getEnd().getY());
-        } else if (currentLine.isBeginInit()) {
-            addPoint(x, currentLine.getBegin().getY());
+        if (currentEdge.isEndInit()) {
+            addPoint(x, currentEdge.getEnd().getY());
+        } else if (currentEdge.isBeginInit()) {
+            addPoint(x, currentEdge.getBegin().getY());
         } else {
             addPoint(x, y);
         }
     }
 
     private void addPointVertical(int x, int y) {
-        if (currentLine.isEndInit()) {
-            addPoint(currentLine.getEnd().getX(), y);
-        } else if (currentLine.isBeginInit()) {
-            addPoint(currentLine.getBegin().getX(), y);
+        if (currentEdge.isEndInit()) {
+            addPoint(currentEdge.getEnd().getX(), y);
+        } else if (currentEdge.isBeginInit()) {
+            addPoint(currentEdge.getBegin().getX(), y);
         } else {
             addPoint(x, y);
         }
     }
 
     private void addPoint(double x, double y) {
-        if (!currentLine.isBeginInit()) {
-            currentLine.setBegin(new Point(x, y));
-            currentLine.setBeginInit(true);
-        } else if (!currentLine.isEndInit()) {
-            edges.add(new Edge(currentLine.getBegin(), new Point(x, y)));
-            doUpdate();
-            currentLine.clear();
+        if (!currentEdge.isBeginInit()) {
+            currentEdge.setBegin(new Point(x, y));
+            currentEdge.setBeginInit(true);
+        } else if (!currentEdge.isEndInit()) {
+            if (!(currentEdge.getBegin().getX() == x && currentEdge.getBegin().getY() == y)) {
+                currentEdge.setEnd(new Point(x, y));
+                currentEdge.setEndInit(true);
+                doUpdatePolygon();
+            }
+        } else {
+            currentEdge.setBegin(currentEdge.getEnd());
+            currentEdge.setEnd(new Point(x, y));
+            doUpdatePolygon();
         }
     }
 
+    private void doUpdatePolygon() {
+        Edge copy = new Edge(currentEdge.getBegin(), currentEdge.getEnd());
+        allEdges.add(copy);
+        currentPolygon.add(copy);
+        drawLine(copy);
+        currentEdge = new Edge(new Point(currentEdge.getBegin()), currentEdge.getEnd());
+        currentEdge.setBeginInit(true);
+        currentEdge.setEndInit(true);
+    }
+
     private void doUpdate() {
-        clearCanvas();
+//        clearCanvas();
         cut();
     }
 
@@ -314,60 +286,79 @@ public class Controller {
         }
 
         for (Cutter c : cutters) {
-            for (Edge e : edges) {
-                cutCyrusBeck(c, e, direction);
+            for (Polygon p : polygons) {
+                cutSutherlandHodgman(c, p);
             }
         }
 
     }
 
-    private double scalarMulti(Point a, Point b) {
-        return a.getX() * b.getX() + a.getY() * b.getY();
+    private void cutSutherlandHodgman(Cutter cutter, Polygon polygon) {
+        ArrayList<Edge> edges = cutter.getEdges();
+        ArrayList<Point> input = polygon.getVertices();
+        if (input.isEmpty() || edges.isEmpty()) {
+            return;
+        }
+        ArrayList<Point> output = new ArrayList<>();
+        int caseNumber = 0;
+        for (int i = 0; i < edges.size(); i++) {
+            Edge edge = edges.get(i);
+            Point r = edges.get((i + 2) % edges.size()).getBegin();
+            Point s = input.get(input.size() - 1);
+            for (Point p : input) {
+                if (Edge.isPointInsideEdge(edge, r, p)) {
+                    if (Edge.isPointInsideEdge(edge, r, s)) {
+                        caseNumber = 1;
+                    } else {
+                        caseNumber = 4;
+                    }
+                } else {
+                    if (Edge.isPointInsideEdge(edge, r, s)) {
+                        caseNumber = 2;
+                    } else {
+                        caseNumber = 3;
+                    }
+                }
+                switch (caseNumber) {
+                    case 1:
+                        output.add(p);
+                        break;
+                    case 2:
+                        Point pi = edge.computeIntersection(s, p);
+                        output.add(pi);
+                        break;
+                    case 3:
+                        break;
+                    case 4:
+                        Point pa = edge.computeIntersection(s, p);
+                        output.add(pa);
+                        output.add(p);
+                        break;
+                }
+                s = p;
+            }
+            if (output.isEmpty()) {
+                drawVisible(input);
+                return;
+            }
+
+            input = (ArrayList<Point>) output.clone();
+
+            output.clear();
+        }
+        drawVisible(input);
     }
 
-    private void cutCyrusBeck(Cutter cutter, Edge edge, int n) {
-        double tb = 0;
-        double te = 1;
-        Point D = new Point(edge.getEnd().getX() - edge.getBegin().getX(),
-                edge.getEnd().getY() - edge.getBegin().getY());
-
-        for (int i = 0; i < cutter.size() - 1; i++) {
-            Point W = new Point(edge.getBegin().getX() - cutter.get(i).getX(),
-                    edge.getBegin().getY() - cutter.get(i).getY());
-            Point N = new Point(-n * (cutter.get(i + 1).getY() - cutter.get(i).getY()),
-                    n * (cutter.get(i + 1).getX() - cutter.get(i).getX()));
-
-            double Dscalar = scalarMulti(D, N);
-            double Wscalar = scalarMulti(W, N);
-
-            if (Dscalar == 0) {
-                if (Wscalar < 0) {
-                    return;
-                }
-            } else {
-                double t = -Wscalar / Dscalar;
-                if (Dscalar > 0) {
-                    if (t > 1) {
-                        return;
-                    } else {
-                        tb = Math.max(tb, t);
-                    }
-                } else if (Dscalar < 0) {
-                    if (t < 0) {
-                        return;
-                    } else {
-                        te = Math.min(te, t);
-                    }
-                }
+    private void drawVisible(ArrayList<Point> input) {
+        if (input.size() > 1) {
+            for (int i = 0; i < input.size() - 1; i++) {
+                LineDrawer.DigitalDiffAnalyzeDraw(canvas,
+                        input.get(i).getX(), input.get(i).getY(),
+                        input.get(i + 1).getX(), input.get(i + 1).getY(),
+                        visiblePicker.getValue());
             }
-        }
-
-        if (tb <= te) {
-            double xBegin = edge.getBegin().getX() + (edge.getEnd().getX() - edge.getBegin().getX()) * te;
-            double yBegin = edge.getBegin().getY() + (edge.getEnd().getY() - edge.getBegin().getY()) * te;
-            double xEnd = edge.getBegin().getX() + (edge.getEnd().getX() - edge.getBegin().getX()) * tb;
-            double yEnd = edge.getBegin().getY() + (edge.getEnd().getY() - edge.getBegin().getY()) * tb;
-            LineDrawer.DigitalDiffAnalyzeDraw(canvas, xBegin, yBegin, xEnd, yEnd, visiblePicker.getValue());
+            LineDrawer.DigitalDiffAnalyzeDraw(canvas, input.get(input.size() - 1).getX(), input.get(input.size() - 1).getY(),
+                    input.get(0).getX(), input.get(0).getY(), visiblePicker.getValue());
         }
     }
 
