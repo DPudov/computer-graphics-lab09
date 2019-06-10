@@ -7,6 +7,10 @@ public class Cutter {
     private int sign;
     private boolean isFull;
 
+    public ArrayList<Point> getVertices() {
+        return vertices;
+    }
+
     public Cutter() {
         vertices = new ArrayList<>();
     }

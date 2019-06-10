@@ -84,39 +84,8 @@
                         <Font size="17.0"/>
                     </font>
                 </Button>
-                <HBox prefHeight="51.0" prefWidth="346.0">
+                <VBox prefHeight="279.0" prefWidth="346.0">
                     <children>
-                        <VBox prefHeight="31.0" prefWidth="187.0">
-                            <HBox.margin>
-                                <Insets bottom="10.0" left="10.0" right="10.0" top="10.0"/>
-                            </HBox.margin>
-                            <children>
-                                <Label alignment="CENTER" prefHeight="15.0" prefWidth="149.0" text="X1"/>
-                                <TextField fx:id="inputX1Field" prefHeight="25.0" prefWidth="171.0"
-                                           promptText="Введите x"/>
-                            </children>
-                        </VBox>
-                        <VBox prefHeight="51.0" prefWidth="194.0">
-                            <HBox.margin>
-                                <Insets bottom="10.0" left="10.0" right="10.0" top="10.0"/>
-                            </HBox.margin>
-                            <children>
-                                <Label alignment="CENTER" prefHeight="15.0" prefWidth="149.0" text="Y1"/>
-                                <TextField fx:id="inputY1Field" promptText="Введите y"/>
-                            </children>
-                        </VBox>
-                    </children>
-                </HBox>
-                <VBox prefHeight="200.0" prefWidth="100.0">
-                    <children>
-                        <Button fx:id="addLineButton" mnemonicParsing="false" text="Добавить отрезок">
-                            <VBox.margin>
-                                <Insets bottom="10.0" left="10.0" right="10.0" top="10.0"/>
-                            </VBox.margin>
-                            <font>
-                                <Font size="17.0"/>
-                            </font>
-                        </Button>
                         <HBox prefHeight="51.0" prefWidth="346.0">
                             <children>
                                 <VBox prefHeight="31.0" prefWidth="187.0">
@@ -140,7 +109,39 @@
                                 </VBox>
                             </children>
                         </HBox>
+                        <Button fx:id="addLineButton" mnemonicParsing="false" text="Добавить вершину многоугольника">
+                            <VBox.margin>
+                                <Insets bottom="10.0" left="10.0" right="10.0" top="10.0"/>
+                            </VBox.margin>
+                            <font>
+                                <Font size="16.0"/>
+                            </font>
+                        </Button>
                         <Button fx:id="addCutterButton" mnemonicParsing="false" text="Добавить вершину отсекателя">
+                            <VBox.margin>
+                                <Insets bottom="10.0" left="10.0" right="10.0" top="10.0"/>
+                            </VBox.margin>
+                            <font>
+                                <Font size="17.0"/>
+                            </font>
+                        </Button>
+                        <Button fx:id="clearCutter" mnemonicParsing="false" text="Очистить отсекатель">
+                            <VBox.margin>
+                                <Insets bottom="10.0" left="10.0" right="10.0" top="10.0"/>
+                            </VBox.margin>
+                            <font>
+                                <Font size="17.0"/>
+                            </font>
+                        </Button>
+                        <Button fx:id="cutButton" mnemonicParsing="false" text="Произвести отсечение">
+                            <VBox.margin>
+                                <Insets bottom="10.0" left="10.0" right="10.0" top="10.0"/>
+                            </VBox.margin>
+                            <font>
+                                <Font size="17.0"/>
+                            </font>
+                        </Button>
+                        <Button fx:id="edgeDrawButton" mnemonicParsing="false" text="Рисовать на ребре">
                             <VBox.margin>
                                 <Insets bottom="10.0" left="10.0" right="10.0" top="10.0"/>
                             </VBox.margin>

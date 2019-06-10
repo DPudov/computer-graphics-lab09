@@ -10,8 +10,15 @@ import javafx.scene.paint.Color;
 
 import java.util.ArrayList;
 import java.util.LinkedList;
+import java.util.Optional;
 
 public class Controller {
+    @FXML
+    Button edgeDrawButton;
+    @FXML
+    Button cutButton;
+    @FXML
+    Button clearCutter;
     @FXML
     Canvas canvas;
     @FXML
@@ -31,10 +38,6 @@ public class Controller {
     @FXML
     Button clearAllButton;
     @FXML
-    TextField inputX1Field;
-    @FXML
-    TextField inputY1Field;
-    @FXML
     Button addLineButton;
 
     private Cutter cutter = new Cutter();
@@ -45,6 +48,9 @@ public class Controller {
     private final ArrayList<Polygon> polygons = new ArrayList<>();
     private Edge currentEdge = new Edge(new Point(0, 0), new Point(0, 0));
     private int direction = -1;
+
+    private int edgeIndex = 0;
+    private boolean drawingOnEdge = false;
 
     @FXML
     public void initialize() {
@@ -59,8 +65,8 @@ public class Controller {
 
         addLineButton.addEventHandler(MouseEvent.MOUSE_CLICKED, event -> {
             try {
-                Point p1 = new Point(Integer.parseInt(inputX1Field.getText()),
-                        Integer.parseInt(inputY1Field.getText()));
+                Point p1 = new Point(Integer.parseInt(inputXField.getText()),
+                        Integer.parseInt(inputYField.getText()));
                 addPoint(p1.getX(), p1.getY());
                 doUpdate();
             } catch (NumberFormatException e) {
@@ -81,6 +87,35 @@ public class Controller {
                 setAlert("Введены неверные данные для нового отсекателя");
             }
         });
+
+        clearCutter.addEventHandler(MouseEvent.MOUSE_CLICKED, mouseEvent -> {
+            cutters.clear();
+            cutter.clear();
+            clearCanvas();
+            for (Edge e : allEdges) {
+                drawLine(e);
+            }
+        });
+
+        cutButton.addEventHandler(MouseEvent.MOUSE_CLICKED, mouseEvent -> {
+            cut();
+        });
+
+        edgeDrawButton.addEventHandler(MouseEvent.MOUSE_CLICKED, mouseEvent -> {
+            if (cutters.size() != 0) {
+                TextInputDialog dialog = new TextInputDialog();
+                dialog.setTitle("Введите номер ребра");
+                dialog.setContentText("Номер");
+                dialog.setHeaderText("Введите номер ребра");
+                Optional<String> result = dialog.showAndWait();
+                result.ifPresent(number -> {
+                    this.edgeIndex = Integer.parseInt(number);
+                    this.drawingOnEdge = true;
+                });
+            } else {
+                setAlert("Нет отсекателя");
+            }
+        });
     }
 
     private void setupCanvasListeners() {
@@ -88,25 +123,30 @@ public class Controller {
             MouseButton b = e.getButton();
             boolean hasShift = e.isShiftDown();
             boolean hasControl = e.isControlDown();
-
-            if (b == MouseButton.PRIMARY && hasShift && hasControl) {
-                //Прямая
-                addPoint((int) e.getX(), (int) e.getY());
-            } else if (b == MouseButton.PRIMARY && hasShift) {
-                // горизонтальная
-                addPointHorizontal((int) e.getX(), (int) e.getY());
-            } else if (b == MouseButton.PRIMARY && hasControl) {
-                // вертикальная
-                addPointVertical((int) e.getX(), (int) e.getY());
-            } else if (b == MouseButton.PRIMARY) {
-                addPoint((int) e.getX(), (int) e.getY());
-            } else if (b == MouseButton.SECONDARY && hasControl) {
-                closeCutter();
-            } else if (b == MouseButton.SECONDARY && hasShift) {
-                closePolygon();
-            } else if (b == MouseButton.SECONDARY) {
-                addCutterPoint(new Point(e.getX(), e.getY()));
+            if (!drawingOnEdge) {
+                if (b == MouseButton.PRIMARY && hasShift && hasControl) {
+                    //Прямая
+                    addPoint((int) e.getX(), (int) e.getY());
+                } else if (b == MouseButton.PRIMARY && hasShift) {
+                    // горизонтальная
+                    addPointHorizontal((int) e.getX(), (int) e.getY());
+                } else if (b == MouseButton.PRIMARY && hasControl) {
+                    // вертикальная
+                    addPointVertical((int) e.getX(), (int) e.getY());
+                } else if (b == MouseButton.PRIMARY) {
+                    addPoint((int) e.getX(), (int) e.getY());
+                } else if (b == MouseButton.SECONDARY && hasControl) {
+                    closeCutter();
+                } else if (b == MouseButton.SECONDARY && hasShift) {
+                    closePolygon();
+                } else if (b == MouseButton.SECONDARY) {
+                    addCutterPoint(new Point(e.getX(), e.getY()));
+                }
+            } else {
+                drawingOnEdge = false;
+                addPointOnEdge((int) e.getX(), (int) e.getY());
             }
+
 
 //            doUpdate();
 
@@ -114,6 +154,16 @@ public class Controller {
 
         canvas.addEventHandler(MouseEvent.MOUSE_MOVED, mouseEvent ->
                 cursorLabel.setText("Координата курсора: " + mouseEvent.getX() + " ; " + mouseEvent.getY()));
+    }
+
+    private void addPointOnEdge(int x, int y) {
+        if (edgeIndex >= 0 && edgeIndex < cutter.getEdges().size()) {
+            Edge edge = cutter.getEdges().get(edgeIndex);
+            Point beg = edge.getBegin();
+            Point end = edge.getEnd();
+            double tan = (end.getY() - beg.getY()) / (end.getX() - beg.getX());
+            addPoint(x, beg.getY() + tan * (x - beg.getX()));
+        }
     }
 
     private void addCutterPoint(Point point) {
@@ -241,7 +291,10 @@ public class Controller {
     }
 
     private void drawLine(double xBegin, double yBegin, double xEnd, double yEnd) {
-        LineDrawer.DigitalDiffAnalyzeDraw(canvas, xBegin, yBegin, xEnd, yEnd, linePicker.getValue());
+        GraphicsContext gc = canvas.getGraphicsContext2D();
+        gc.setStroke(linePicker.getValue());
+        gc.strokeLine(xBegin, yBegin, xEnd, yEnd);
+//        LineDrawer.DigitalDiffAnalyzeDraw(canvas, xBegin, yBegin, xEnd, yEnd, linePicker.getValue());
     }
 
 
@@ -273,7 +326,7 @@ public class Controller {
     }
 
     private void cut() {
-        for (Edge e : edges) {
+        for (Edge e : allEdges) {
             drawLine(e);
         }
 
@@ -295,58 +348,72 @@ public class Controller {
 
     private void cutSutherlandHodgman(Cutter cutter, Polygon polygon) {
         ArrayList<Edge> edges = cutter.getEdges();
-        ArrayList<Point> input = polygon.getVertices();
-        if (input.isEmpty() || edges.isEmpty()) {
-            return;
-        }
-        ArrayList<Point> output = new ArrayList<>();
-        int caseNumber = 0;
+        ArrayList<Point> in = polygon.getVertices();
+        in.add(in.get(0));
+        ArrayList<Point> out = new ArrayList<>();
+
+        //begin looping through edges and points
+        int casenum = 0;
         for (int i = 0; i < edges.size(); i++) {
-            Edge edge = edges.get(i);
+            Edge e = edges.get(i);
             Point r = edges.get((i + 2) % edges.size()).getBegin();
-            Point s = input.get(input.size() - 1);
-            for (Point p : input) {
-                if (Edge.isPointInsideEdge(edge, r, p)) {
-                    if (Edge.isPointInsideEdge(edge, r, s)) {
-                        caseNumber = 1;
+            Point s = in.get(in.size() - 1);
+            for (Point p : in) {
+                //first see if the point is inside the edge
+                if (Edge.isPointInsideEdge(e, r, p)) {
+                    //then if the specific pair of points is inside
+                    if (Edge.isPointInsideEdge(e, r, s)) {
+                        casenum = 1;
+                        //pair goes outside, so one point still inside
                     } else {
-                        caseNumber = 4;
+                        casenum = 4;
                     }
+
+                    //no point inside
                 } else {
-                    if (Edge.isPointInsideEdge(edge, r, s)) {
-                        caseNumber = 2;
+                    //does the specific pair go inside
+                    if (Edge.isPointInsideEdge(e, r, s)) {
+                        casenum = 2;
+                        //no points in pair are inside
                     } else {
-                        caseNumber = 3;
+                        casenum = 3;
                     }
                 }
-                switch (caseNumber) {
+
+                switch (casenum) {
+
+                    //pair is inside, add point
                     case 1:
-                        output.add(p);
+                        out.add(p);
                         break;
+
+                    //pair goes inside, add intersection only
                     case 2:
-                        Point pi = edge.computeIntersection(s, p);
-                        output.add(pi);
+                        Point inter0 = e.computeIntersection(s, p);
+                        out.add(inter0);
                         break;
+
+                    //pair outside, add nothing
                     case 3:
                         break;
+
+                    //pair goes outside, add point and intersection
                     case 4:
-                        Point pa = edge.computeIntersection(s, p);
-                        output.add(pa);
-                        output.add(p);
+                        Point inter1 = e.computeIntersection(s, p);
+                        out.add(inter1);
+                        out.add(p);
                         break;
                 }
                 s = p;
             }
-            if (output.isEmpty()) {
-                drawVisible(input);
+            if (out.size() == 0) {
                 return;
             }
+            in = (ArrayList<Point>) out.clone();
 
-            input = (ArrayList<Point>) output.clone();
-
-            output.clear();
+            out.clear();
         }
-        drawVisible(input);
+        drawVisible(in);
     }
 
     private void drawVisible(ArrayList<Point> input) {
