@@ -173,7 +173,7 @@ public class Controller {
             if (size > 1) {
                 Point beg = cutter.get(size - 2);
                 Point end = cutter.get(size - 1);
-                LineDrawer.DigitalDiffAnalyzeDraw(canvas, beg.getX(), beg.getY(),
+                LineDrawer.DrawLine(canvas, beg.getX(), beg.getY(),
                         end.getX(), end.getY(), cutterPicker.getValue());
             }
         } else {
@@ -280,7 +280,7 @@ public class Controller {
     }
 
     private void doUpdate() {
-//        clearCanvas();
+        clearCanvas();
         cut();
     }
 
@@ -291,10 +291,7 @@ public class Controller {
     }
 
     private void drawLine(double xBegin, double yBegin, double xEnd, double yEnd) {
-        GraphicsContext gc = canvas.getGraphicsContext2D();
-        gc.setStroke(linePicker.getValue());
-        gc.strokeLine(xBegin, yBegin, xEnd, yEnd);
-//        LineDrawer.DigitalDiffAnalyzeDraw(canvas, xBegin, yBegin, xEnd, yEnd, linePicker.getValue());
+        LineDrawer.DrawLine(canvas, xBegin, yBegin, xEnd, yEnd, linePicker.getValue());
     }
 
 
@@ -303,14 +300,14 @@ public class Controller {
         for (int i = 0; i < c.size() - 1; i++) {
             Point beg = c.get(i);
             Point end = c.get(i + 1);
-            LineDrawer.DigitalDiffAnalyzeDraw(canvas,
+            LineDrawer.DrawLine(canvas,
                     beg.getX(), beg.getY(),
                     end.getX(), end.getY(), cutterPicker.getValue());
         }
         Point beg = c.get(c.size() - 1);
         Point end = c.get(0);
 
-        LineDrawer.DigitalDiffAnalyzeDraw(canvas,
+        LineDrawer.DrawLine(canvas,
                 beg.getX(), beg.getY(),
                 end.getX(), end.getY(), cutterPicker.getValue());
     }
@@ -319,7 +316,7 @@ public class Controller {
         for (int i = 0; i < c.size() - 1; i++) {
             Point beg = c.get(i);
             Point end = c.get(i + 1);
-            LineDrawer.DigitalDiffAnalyzeDraw(canvas,
+            LineDrawer.DrawLine(canvas,
                     beg.getX(), beg.getY(),
                     end.getX(), end.getY(), cutterPicker.getValue());
         }
@@ -346,85 +343,86 @@ public class Controller {
 
     }
 
+    private boolean checkVisible(Point a, Point b, Point c, int normal) {
+        double x1 = a.getX() - b.getX();
+        double y1 = a.getY() - b.getY();
+        double x2 = c.getX() - b.getX();
+        double y2 = c.getY() - b.getY();
+        double vectorCross = x1 * y2 - x2 * y1;
+        return normal * vectorCross < 0;
+    }
+
+    private boolean hasIntersection(Edge a, Edge b, int normal) {
+        boolean visibleBegin = checkVisible(a.getBegin(), b.getBegin(), b.getEnd(), normal);
+        boolean visibleEnd = checkVisible(a.getEnd(), b.getBegin(), b.getEnd(), normal);
+        return (visibleBegin && !visibleEnd) || (!visibleBegin && visibleEnd);
+    }
+
+    private Point intersection(Edge a, Edge b) {
+        Point p1 = a.getBegin();
+        Point p2 = a.getEnd();
+        Point q1 = b.getBegin();
+        Point q2 = b.getEnd();
+        double x1 = p1.getX(), x2 = p2.getX(), x3 = q1.getX(), x4 = q2.getX();
+        double y1 = p1.getY(), y2 = p2.getY(), y3 = q1.getY(), y4 = q2.getY();
+        double intersectionCoef = ((x4 - x3) * (y1 - y3) - (y4 - y3) * (x1 - x3))
+                / ((y4 - y3) * (x2 - x1) - (x4 - x3) * (y2 - y1));
+
+        return new Point(x1 + intersectionCoef * (x2 - x1), y1 + intersectionCoef * (y2 - y1));
+    }
+
     private void cutSutherlandHodgman(Cutter cutter, Polygon polygon) {
-        ArrayList<Edge> edges = cutter.getEdges();
-        ArrayList<Point> in = polygon.getVertices();
-        in.add(in.get(0));
-        ArrayList<Point> out = new ArrayList<>();
-
-        //begin looping through edges and points
-        int casenum = 0;
-        for (int i = 0; i < edges.size(); i++) {
-            Edge e = edges.get(i);
-            Point r = edges.get((i + 2) % edges.size()).getBegin();
-            Point s = in.get(in.size() - 1);
-            for (Point p : in) {
-                //first see if the point is inside the edge
-                if (Edge.isPointInsideEdge(e, r, p)) {
-                    //then if the specific pair of points is inside
-                    if (Edge.isPointInsideEdge(e, r, s)) {
-                        casenum = 1;
-                        //pair goes outside, so one point still inside
-                    } else {
-                        casenum = 4;
-                    }
-
-                    //no point inside
-                } else {
-                    //does the specific pair go inside
-                    if (Edge.isPointInsideEdge(e, r, s)) {
-                        casenum = 2;
-                        //no points in pair are inside
-                    } else {
-                        casenum = 3;
-                    }
-                }
-
-                switch (casenum) {
-
-                    //pair is inside, add point
-                    case 1:
-                        out.add(p);
-                        break;
-
-                    //pair goes inside, add intersection only
-                    case 2:
-                        Point inter0 = e.computeIntersection(s, p);
-                        out.add(inter0);
-                        break;
-
-                    //pair outside, add nothing
-                    case 3:
-                        break;
-
-                    //pair goes outside, add point and intersection
-                    case 4:
-                        Point inter1 = e.computeIntersection(s, p);
-                        out.add(inter1);
-                        out.add(p);
-                        break;
-                }
-                s = p;
-            }
-            if (out.size() == 0) {
-                return;
-            }
-            in = (ArrayList<Point>) out.clone();
-
-            out.clear();
+        if (!cutter.isConvex()) {
+            return;
         }
-        drawVisible(in);
+
+        int normal = cutter.getSign();
+        ArrayList<Point> cutterVertices = cutter.getVertices();
+        ArrayList<Point> polygonVertices = polygon.getVertices();
+        Point S = new Point(0, 0);
+        Point F = new Point(0, 0);
+        for (int i = 0; i < cutterVertices.size() - 1; i++) {
+            ArrayList<Point> output = new ArrayList<>();
+            for (int j = 0; j < polygonVertices.size(); j++) {
+                if (j == 0) {
+                    F = polygonVertices.get(j);
+                } else {
+                    Edge a = new Edge(S, polygonVertices.get(j));
+                    Edge b = new Edge(cutterVertices.get(i), cutterVertices.get(i + 1));
+                    if (hasIntersection(a, b, normal)) {
+                        output.add(intersection(a, b));
+                    }
+                }
+                S = polygonVertices.get(j);
+                if (checkVisible(S, cutterVertices.get(i), cutterVertices.get(i + 1), normal)) {
+                    output.add(S);
+                }
+
+            }
+            if (output.size() != 0) {
+                Edge a = new Edge(S, F);
+                Edge b = new Edge(cutterVertices.get(i), cutterVertices.get(i + 1));
+                if (hasIntersection(a, b, normal)) {
+                    output.add(intersection(a, b));
+                }
+            }
+
+            if (output.size() != 0)
+                polygonVertices = (ArrayList<Point>) output.clone();
+
+        }
+        drawVisible(polygonVertices);
     }
 
     private void drawVisible(ArrayList<Point> input) {
         if (input.size() > 1) {
             for (int i = 0; i < input.size() - 1; i++) {
-                LineDrawer.DigitalDiffAnalyzeDraw(canvas,
+                LineDrawer.DrawLineD(canvas,
                         input.get(i).getX(), input.get(i).getY(),
                         input.get(i + 1).getX(), input.get(i + 1).getY(),
                         visiblePicker.getValue());
             }
-            LineDrawer.DigitalDiffAnalyzeDraw(canvas, input.get(input.size() - 1).getX(), input.get(input.size() - 1).getY(),
+            LineDrawer.DrawLineD(canvas, input.get(input.size() - 1).getX(), input.get(input.size() - 1).getY(),
                     input.get(0).getX(), input.get(0).getY(), visiblePicker.getValue());
         }
     }

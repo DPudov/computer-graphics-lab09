@@ -97,7 +97,7 @@ public class Point {
 
     @Override
     public String toString() {
-        return e[0] + ", " + e[1] + ", " + e[2];
+        return e[0] + ", " + e[1];
     }
 
 }

@@ -69,10 +69,6 @@ public class Edge {
         setBeginInit(false);
     }
 
-    public boolean isHorizontal() {
-        return getEnd().getY() == getBegin().getY();
-    }
-
 
     public Point computeIntersection(Point s, Point p) {
         double edgex = begin.getX() - end.getX();
@@ -90,19 +86,4 @@ public class Edge {
         return new Point(x, y, 0);
     }
 
-    public Point computeIntersection(Edge e) {
-        double edgex = begin.getX() - end.getX();
-        double linex = e.begin.getX() - e.end.getX();
-
-        double m1 = (e.begin.getY() - e.end.getY()) / (e.begin.getX() - e.end.getX());
-        double m2 = (begin.getY() - end.getY()) / (begin.getX() - end.getX());
-        double b1 = e.begin.getY() - m1 * e.begin.getX();
-        double b2 = begin.getY() - m2 * begin.getX();
-
-        double x = edgex == 0.0f ? begin.getX() :
-                linex == 0.0f ? e.end.getX() : (b2 - b1) / (m1 - m2);
-        double y = linex == 0.0f ? m2 * x + b2 : m1 * x + b1;
-
-        return new Point(x, y, 0);
-    }
 }
