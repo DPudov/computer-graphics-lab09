@@ -407,8 +407,7 @@ public class Controller {
                 }
             }
 
-            if (output.size() != 0)
-                polygonVertices = (ArrayList<Point>) output.clone();
+            polygonVertices = (ArrayList<Point>) output.clone();
 
         }
         drawVisible(polygonVertices);
