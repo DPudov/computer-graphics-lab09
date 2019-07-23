@@ -70,20 +70,4 @@ public class Edge {
     }
 
 
-    public Point computeIntersection(Point s, Point p) {
-        double edgex = begin.getX() - end.getX();
-        double linex = s.getX() - p.getX();
-
-        double m1 = (s.getY() - p.getY()) / (s.getX() - p.getX());
-        double m2 = (begin.getY() - end.getY()) / (begin.getX() - end.getX());
-        double b1 = s.getY() - m1 * s.getX();
-        double b2 = begin.getY() - m2 * end.getX();
-
-        double x = edgex == 0.0f ? begin.getX() :
-                linex == 0.0f ? p.getX() : (b2 - b1) / (m1 - m2);
-        double y = linex == 0.0f ? m2 * x + b2 : m1 * x + b1;
-
-        return new Point(x, y, 0);
-    }
-
 }
